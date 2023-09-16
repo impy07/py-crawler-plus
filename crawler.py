@@ -10,11 +10,11 @@ help_str = f'''Usage: {sys.argv[0]} [-v] -u <URL> -t <TAG_LIST>
 -h | --help		Display help message
 -d				DEPTH: limits the depth of the research, default is set to 100
 
---spider			Enable crawling
---limit			Enable domain check, limiting the crawler within the staring domain
+-s | --spider			Enable crawling
+-l | --limit			Enable domain check, limiting the crawler within the staring domain
 '''
 
-FLAGS = ['-u','-t','-w','-v','-d','-h','--spider','--limit']
+FLAGS = ['-u','-t','-w','-v','-d','-h','-l','-s','--spider','--limit']
 URL = ''
 TAG_LIST = []
 WORD_LIST=[]
@@ -24,29 +24,85 @@ SPIDER = 0
 LIMIT = 0
 
 current_depth = 0
+start_domain = ''
+already_visited = []
 
-def search(url,search=1):
+def spider(url):
 	global TAG_LIST
 	global WORD_LIST
 	global VERBOSE
-	
-	page = requests.get(URL)
-	page = BS(page.content,'html.parser')
-	
-	if(search):
-		for tag in TAG_LIST:
-			print(f'Result for tag {tag}')
-			for entry in page.find_all(tag):
-				print(entry)
-			print('==========')
+	global DEPTH
+	global current_depth
+	global LIMIT
+	global start_domain
 		
-		for word in WORD_LIST:
-			print(f'Result for word {word}')
-			for entry in page.find_all(text=word):
-				print(entry)
-			print('==========')
-	else:
-		print(page.prettify())
+	response = search(url)
+	
+	if(response.ok):
+		page = BS(response.content,'html.parser')
+		
+		links = page.find_all('a')
+		if(current_depth <= DEPTH):
+			if(len(links) > 0):
+				current_depth +=1
+			for link in links:
+				try:
+					if '#' == link['href']:
+						if(VERBOSE):
+							print(f'No link in tag {link}, skipping')
+							continue
+					
+					if urlparse(link['href']).netloc != start_domain and LIMIT:
+						if(VERBOSE):
+							print(f'Other domain in tag {link}, skipping')
+							continue
+					
+					if 'http' not in link['href']:
+						link['href'] = start_domain+link['href']
+					
+					if link['href'] not in visited:
+						visited.append(link['href'])
+						spider(link['href'])
+					
+				except:
+					if(VERBOSE):
+						print(f'Empty href for tag {link}, skipping')
+						continue
+
+
+def search(url,search=1):
+
+	global TAG_LIST
+	global WORD_LIST
+	global VERBOSE
+	found = 0
+	
+	try:
+		response = requests.get(URL)
+	except:
+		print(f'Error connecting to {URL}')
+		sys.exit(-1)
+		
+	if(response.ok):
+		page = BS(response.content,'html.parser')
+		
+		if(search):
+			print(f'Results for URL: {url}')
+			for tag in TAG_LIST:
+				print(f'Results for tag {tag}:')
+				for entry in page.find_all(tag):
+					for word in WORD_LIST:
+						if word in entry.text:
+							found = 1
+					if(found):
+						print(entry)
+						found = 0
+				print('==========')
+			print('')
+		else:
+			print(page.prettify())
+			
+	return response
 
 def main():
 	
@@ -126,14 +182,14 @@ def main():
 		ctr+=2
 	
 	if(SPIDER):
-		#TODO: Crawler
-		pass
+		#Crawler
+		start_domain = urlparse(URL).netloc
+		spider(URL)
+		
 	else:
-		#TODO: Single page research
-		if(len(TAG_LIST) == 0 and len(WORD_LIST) == 0):
+		#Single page research
+		if(len(TAG_LIST) == 0):
 			search(URL,0)
-		else:
-			search(URL)
 	
 	sys.exit(0)
 	
