@@ -22,6 +22,7 @@ VERBOSE = 0
 DEPTH = 100
 SPIDER = 0
 LIMIT = 0
+PREFIX = 'https://'
 
 current_depth = 0
 start_domain = ''
@@ -35,8 +36,12 @@ def spider(url):
 	global current_depth
 	global LIMIT
 	global start_domain
+	global already_visited
 		
 	response = search(url)
+	
+	if VERBOSE:
+		print(f'Operating at depth: {current_depth}')
 	
 	if(response.ok):
 		page = BS(response.content,'html.parser')
@@ -46,6 +51,8 @@ def spider(url):
 			if(len(links) > 0):
 				current_depth +=1
 			for link in links:
+				if(VERBOSE):
+					print(f'Link found: {link}')
 				try:
 					if '#' == link['href']:
 						if(VERBOSE):
@@ -58,13 +65,17 @@ def spider(url):
 							continue
 					
 					if 'http' not in link['href']:
-						link['href'] = start_domain+link['href']
+						link['href'] = f'{PREFIX}{start_domain}{link["href"]}'
 					
-					if link['href'] not in visited:
-						visited.append(link['href'])
+					if link['href'] not in already_visited:
+						already_visited.append(link['href'])
+						if VERBOSE:
+							print(f'Added new link: {link["href"]}')
 						spider(link['href'])
-					
-				except:
+					else:
+						if VERBOSE:
+							print(f'Link Already Visited: {link["href"]}')
+				except other:
 					if(VERBOSE):
 						print(f'Empty href for tag {link}, skipping')
 						continue
@@ -76,31 +87,39 @@ def search(url,search=1):
 	global WORD_LIST
 	global VERBOSE
 	found = 0
+	word_len = len(WORD_LIST)
+	
+	if VERBOSE:
+		print(f'Searching for URL {url}')
 	
 	try:
-		response = requests.get(URL)
+		response = requests.get(url)
 	except:
-		print(f'Error connecting to {URL}')
+		print(f'Error connecting to {url}')
 		sys.exit(-1)
 		
 	if(response.ok):
 		page = BS(response.content,'html.parser')
-		
+		print(f'Found URL: {url}')
 		if(search):
-			print(f'Results for URL: {url}')
 			for tag in TAG_LIST:
-				print(f'Results for tag {tag}:')
+				if VERBOSE:
+					print(f'Results for tag {tag}:')
 				for entry in page.find_all(tag):
-					for word in WORD_LIST:
-						if word in entry.text:
-							found = 1
-					if(found):
+					if(word_len == 0):
 						print(entry)
-						found = 0
-				print('==========')
-			print('')
+					else:
+						for word in WORD_LIST:
+							if word in entry.text:
+								found = 1
+						if(found):
+							print(entry)
+							found = 0
+				if VERBOSE:
+					print('==========')
 		else:
 			print(page.prettify())
+		print('')
 			
 	return response
 
@@ -116,6 +135,8 @@ def main():
 	global LIMIT
 	global current_depth
 	global help_str
+	global start_domain
+	global PREFIX
 	
 	params = sys.argv[1::]
 	length = len(params)
@@ -136,6 +157,9 @@ def main():
 				if 'http' not in URL:
 					print('Incomplete URL format, exit')
 					sys.exit(-1)
+				
+				if 'https' not in URL:
+					PREFIX = 'http://'
 			
 			case '-t':
 				if not (ctr+1>=length or params[ctr+1] in FLAGS):
@@ -190,6 +214,8 @@ def main():
 		#Single page research
 		if(len(TAG_LIST) == 0):
 			search(URL,0)
+		else:
+			search(URL)
 	
 	sys.exit(0)
 	
