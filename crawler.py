@@ -75,8 +75,14 @@ def search(url,search=1):
 	global TAG_LIST
 	global WORD_LIST
 	global VERBOSE
+	found = 0
 	
-	response = requests.get(URL)
+	try:
+		response = requests.get(URL)
+	except:
+		print(f'Error connecting to {URL}')
+		sys.exit(-1)
+		
 	if(response.ok):
 		page = BS(response.content,'html.parser')
 		
@@ -87,7 +93,10 @@ def search(url,search=1):
 				for entry in page.find_all(tag):
 					for word in WORD_LIST:
 						if word in entry.text:
-							print(entry)
+							found = 1
+					if(found):
+						print(entry)
+						found = 0
 				print('==========')
 			print('')
 		else:
